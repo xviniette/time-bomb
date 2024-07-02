@@ -5,7 +5,7 @@ export default ({ join, host, onId }) => {
 
     const peers = new Peers()
 
-    const socket = new WebSocket("ws://18.202.177.226:3000")
+    const socket = new WebSocket("wss://18.202.177.226.nip.io/")
     peers.on("peer", data => socket.send(JSON.stringify({ type: "peer", data })))
 
     if (host) socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "id", data: host })))
