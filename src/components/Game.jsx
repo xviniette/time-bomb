@@ -1,17 +1,19 @@
-import { useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 
-import Card from "./Card"
 import Player from "./Player"
 
 import PeerInit from "../modules/PeerInit"
+import Drawed from "./Drawed"
+import Me from "./Me"
+
+import shuffle from "../modules/shuffle"
 
 export default ({ host, join }) => {
-    const [peers, setPeers] = useState()
+    const peers = useRef()
 
-    const [id, setId] = useState(null)
+    const [id, setId] = useState()
+
     const [party, setParty] = useState()
-
-    const roleEmoji = ["😇", "😈"]
 
     useEffect(() => {
         const p = PeerInit({ host, join, onId: id => setId(id) })
@@ -39,11 +41,10 @@ export default ({ host, join }) => {
             } catch (error) {}
         })
 
-        setPeers(p)
+        peers.current = p
     }, [host, join])
 
     const cut = (fromId, toId, cardIndex) => {
-        console.log(fromId, toId, cardIndex)
         if (party.turn != fromId) return
 
         const players = [...party.players]
@@ -57,15 +58,37 @@ export default ({ host, join }) => {
         setParty(p => ({ ...p, players: players, cards: [...p.cards, card] }))
     }
 
-    const start = () => {
+    const startParty = () => {
+        if (!host) return
+
+        const nbPlayers = party.players.length
+        const nbCards = nbPlayers * 5
+        const cards = shuffle([2, ...Array(nbPlayers).fill(1), ...Array(nbCards - nbPlayers - 1).fill(0)])
+
         const players = [...party.players].map(p => ({ id: p.id, name: p.name, cards: [], role: 0 }))
 
-        setParty(p => ({ players: players, cards: [], turn: players[Math.floor(Math.random() * players.length)].id }))
+        players.forEach((p, index) => {
+            p.cards = cards.slice(index * 5, index * 5 + 5)
+        })
+
+        //AFFECTATION MECHANT
+        let nbEvil = 1
+        while (nbEvil > 0) {
+            let index = Math.floor(Math.random() * nbPlayers)
+
+            if (players[index].role == 0) {
+                players[index].role = 1
+                nbEvil--
+            }
+        }
+
+        setParty(p => ({ players: players, cards: [], turn: host }))
     }
 
     useEffect(() => {
         if (!party && host) {
             setParty({
+                started: false,
                 players: [
                     {
                         id: host,
@@ -74,34 +97,28 @@ export default ({ host, join }) => {
                         role: 0,
                     },
                     {
-                        id: "465454",
-                        name: "Host",
-                        cards: [0, 0, 0, 0],
+                        id: "1",
+                        name: "ltime",
+                        cards: [0, 0, 0, 0, 0],
                         role: 0,
                     },
                     {
-                        id: "8465123",
-                        name: "Host",
-                        cards: [0, 1, 0],
-                        role: 0,
-                    },
-                    {
-                        id: "25455",
-                        name: "Host",
-                        cards: [0, 0, 0, 0],
+                        id: "2",
+                        name: "Aze",
+                        cards: [0, 0, 0, 0, 0],
                         role: 0,
                     },
                 ],
+                cards: [],
                 turn: host,
-                cards: [0, 0, 0, 2, 1],
             })
         }
-    }, [host])
+    }, [party, host])
 
     useEffect(() => {
         if (!host) return
         if (!peers) return
-        peers.sendToAll(JSON.stringify({ type: "party", data: party }))
+        peers.current.sendToAll(JSON.stringify({ type: "party", data: party }))
     }, [party, host])
 
     if (!party) return null
@@ -112,50 +129,18 @@ export default ({ host, join }) => {
     const localPlayer = players.find(p => p.id == id)
 
     return (
-        <div className="h-full w-full flex flex-col justify-between bg-amber-900">
-            <div className="flex justify-between">
-                <div className="flex -space-x-16 overflow-hidden">
-                    {party.cards
-                        .filter(c => c == 1)
-                        .map((card, index) => (
-                            <div key={index} className="w-20">
-                                <Card key={index} value={card} />
-                            </div>
-                        ))}
-                </div>
-                <div className="flex -space-x-16">
-                    {party.cards
-                        .filter(c => c == 0)
-                        .map((card, index) => (
-                            <div key={index} className="w-20">
-                                <Card key={index} value={card} />
-                            </div>
-                        ))}
-                </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 justify-center gap-5">
+        <div className="h-full w-full flex flex-col justify-between bg-stone-400 p-2">
+            <Drawed party={party} />
+
+            <div className="flex-1 h-full overflow-hidden grid grid-cols-2 items-center justify-center gap-5">
                 {otherPlayers.map((player, index) => (
-                    <Player
-                        player={player}
-                        key={index}
-                        onCut={(playerId, cardIndex) => {
-                            console.log("ok")
-                            cut(id, playerId, cardIndex)
-                        }}
-                    />
+                    <Player player={player} key={index} onCut={(playerId, cardIndex) => cut(id, playerId, cardIndex)} />
                 ))}
             </div>
-            <div className="flex justify-between items-end">
-                {localPlayer?.name}
 
-                <div className="flex justify-center gap-1">
-                    {localPlayer?.cards.map((card, index) => (
-                        <Card key={index} value={card} />
-                    ))}
-                </div>
+            <button onClick={startParty}>Start</button>
 
-                <div>{roleEmoji[localPlayer?.role]}</div>
-            </div>
+            <Me player={localPlayer} />
         </div>
     )
 }
